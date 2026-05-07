@@ -1,0 +1,7 @@
+# Add project dependencies here.
+# Example:
+# torch
+# transformers
+# pyyaml
+# pandas
+# scikit-learn
