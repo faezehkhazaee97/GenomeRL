@@ -144,7 +144,7 @@ sbatch scripts/slurm/train_agent_finetuned_env_compat_a100.sbatch
 @article{khazaee2025genomerl,
   title={{GenomeRL}: Reinforcement Learning for Adaptive DNA Tokenization
          in Genomic Sequence Classification},
-  author={Khazaee, Baran and Cho, Michael and Jiang, Xinyuan},
+  author={Khazaee, Baran},
   year={2025}
 }
 ```
