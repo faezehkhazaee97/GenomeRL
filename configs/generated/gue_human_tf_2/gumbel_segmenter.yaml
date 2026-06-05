@@ -1,0 +1,23 @@
+dataset:
+  test_path: data/processed/gue_human_tf_2/test.jsonl
+  train_path: data/processed/gue_human_tf_2/train.jsonl
+  valid_path: data/processed/gue_human_tf_2/valid.jsonl
+env:
+  backbone_name: zhihan1996/DNABERT-2-117M
+  checkpoint_path: results/baselines/dnabert2_bpe_finetuned_human_tf_2/best_model.pt
+  hidden_size: 768
+  max_length: 512
+  num_labels: 2
+gumbel:
+  anneal_rate: 0.0003
+  beta: 0.02
+  initial_temperature: 1.0
+  min_temperature: 0.1
+  trainable_encoder_layers: 2
+project_name: GumbelSegmenter_human_tf_2
+seed: 42
+training:
+  batch_size: 16
+  learning_rate: 1.0e-05
+  num_epochs: 5
+  output_dir: results/baselines/gumbel_segmenter_human_tf_2

@@ -1,2 +1,43 @@
-# GRPO training configuration.
-experiment_name: grpo
+project_name: GenomeRL
+seed: 42
+
+dataset:
+  train_path: data/processed/gue_promoter/train.jsonl
+  valid_path: data/processed/gue_promoter/valid.jsonl
+  test_path: data/processed/gue_promoter/test.jsonl
+
+agent:
+  vocab_size: 4
+  embedding_dim: 32
+  hidden_dim: 128
+  num_layers: 1
+  dropout: 0.1
+  initial_boundary_prob: 0.2
+
+classifier:
+  num_labels: 2
+  vocab_size: 4
+  base_embedding_dim: 32
+  token_hidden_dim: 128
+  sequence_hidden_dim: 128
+  dropout: 0.1
+
+rl:
+  group_size: 8
+  beta: 0.02
+  kl_coef: 0.01
+  max_steps: 5000
+  early_stopping_patience: 500
+  learning_rate: 0.00003
+  warmup_steps: 200
+
+training:
+  batch_size: 8
+  num_workers: 0
+  max_steps: 50
+  log_interval: 10
+  output_dir: results/rl_runs/grpo
+
+evaluation:
+  threshold: 0.5
+  output_dir: results/agent_runs/prototype

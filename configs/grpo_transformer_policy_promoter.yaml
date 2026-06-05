@@ -1,0 +1,41 @@
+project_name: GenomeRL_TransformerPolicy_Promoter
+seed: 42
+
+dataset:
+  train_path: data/processed/gue_promoter/train.jsonl
+  valid_path: data/processed/gue_promoter/valid.jsonl
+  test_path: data/processed/gue_promoter/test.jsonl
+
+env:
+  backbone_name: zhihan1996/DNABERT-2-117M
+  checkpoint_path: results/baselines/dnabert2_bpe/best_model.pt
+  hidden_size: 768
+  num_labels: 2
+  max_length: 512
+  cls_mix_weight: 0.0
+  trainable_encoder_layers: 2
+  freeze_embeddings: true
+
+agent:
+  input_dim: 768
+  model_dim: 256
+  num_layers: 2
+  num_heads: 4
+  ffn_dim: 512
+  dropout: 0.1
+  initial_boundary_prob: 0.2
+
+rl:
+  group_size: 8
+  beta: 0.02
+  policy_learning_rate: 0.00003
+  env_learning_rate: 0.00001
+  min_segment_ratio: 0.08
+  below_min_penalty: 5.0
+
+training:
+  batch_size: 8
+  num_workers: 0
+  max_steps: 500
+  log_interval: 10
+  output_dir: results/rl_runs/grpo_transformer_policy_promoter

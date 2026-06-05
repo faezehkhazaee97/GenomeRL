@@ -1,0 +1,24 @@
+project_name: StridedPoolingPromoter
+seed: 42
+
+dataset:
+  train_path: data/processed/gue_promoter/train.jsonl
+  valid_path: data/processed/gue_promoter/valid.jsonl
+  test_path: data/processed/gue_promoter/test.jsonl
+
+env:
+  backbone_name: zhihan1996/DNABERT-2-117M
+  checkpoint_path: results/baselines/dnabert2_bpe/best_model.pt
+  hidden_size: 768
+  num_labels: 2
+  max_length: 512
+
+stride_pooling:
+  stride: 5                     # ~5x compression (63 tokens -> ~13 segments)
+  trainable_encoder_layers: 2   # unfreeze last 2 transformer layers
+
+training:
+  batch_size: 16
+  learning_rate: 0.00001
+  num_epochs: 5
+  output_dir: results/baselines/stride_pooling_promoter

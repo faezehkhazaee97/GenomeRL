@@ -1,0 +1,32 @@
+project_name: GenomeRLFrozenEnv_human_tf_3
+seed: 42
+dataset:
+  train_path: data/processed/gue_human_tf_3/train.jsonl
+  valid_path: data/processed/gue_human_tf_3/valid.jsonl
+  test_path: data/processed/gue_human_tf_3/test.jsonl
+env:
+  backbone_name: zhihan1996/DNABERT-2-117M
+  checkpoint_path: results/baselines/dnabert2_bpe/best_model.pt
+  hidden_size: 768
+  num_labels: 2
+  max_length: 512
+  cls_mix_weight: 0.0
+agent:
+  input_dim: 768
+  model_dim: 256
+  hidden_dim: 128
+  num_layers: 1
+  dropout: 0.1
+  initial_boundary_prob: 0.2
+rl:
+  group_size: 8
+  beta: 0.02
+  learning_rate: 3.0e-05
+training:
+  batch_size: 8
+  num_workers: 0
+  max_steps: 50
+  log_interval: 10
+  output_dir: results/rl_runs/grpo_frozen_env_human_tf_3
+evaluation:
+  threshold: 0.5

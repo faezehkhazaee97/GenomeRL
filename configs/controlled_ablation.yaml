@@ -1,0 +1,33 @@
+project_name: GenomeRLControlledAblation
+seed: 42
+
+dataset:
+  train_path: data/processed/gue_promoter/train.jsonl
+  valid_path: data/processed/gue_promoter/valid.jsonl
+  test_path: data/processed/gue_promoter/test.jsonl
+
+classifier:
+  num_labels: 2
+  vocab_size: 4
+  base_embedding_dim: 32
+  token_hidden_dim: 128
+  sequence_hidden_dim: 128
+  dropout: 0.1
+
+training:
+  batch_size: 16
+  learning_rate: 0.0003
+  epochs: 5
+  weight_decay: 0.01
+  device: cuda
+  num_workers: 0
+
+tokenizer:
+  fixed_k: 6
+  random_boundary_prob: 0.2
+  learned_checkpoint: results/rl_runs/grpo/agent_classifier_last.pt
+  learned_threshold: 0.5
+  learned_mode: sampled
+
+evaluation:
+  output_dir: results/controlled_ablation
