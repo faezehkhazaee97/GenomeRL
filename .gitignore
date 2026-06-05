@@ -1,20 +1,63 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
 .pytest_cache/
 .mypy_cache/
 .venv/
 venv/
 
+# Data (raw and processed — too large for git)
 data/raw/*
 data/processed/*
 data/splits/*
+data/*.docx
+data/*.xlsx
+data/*.csv
+
+# Training outputs and checkpoints
 results/baselines/*
 results/rl_runs/*
 results/figures/*
+results/agent_runs/*
+results/analysis/*
+results/controlled_ablation/*
+results/token_merging/*
+results/slurm/*
+results/*.csv
+results/RESULTS_SUMMARY.md
 
+# Keep .gitkeep placeholders
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/splits/.gitkeep
 !results/baselines/.gitkeep
 !results/rl_runs/.gitkeep
 !results/figures/.gitkeep
+
+# Hugging Face caches
+.hf-cache/
+.hf-cache-compat/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.out
+*.toc
+
+# Paper generated figures and zip
+paper/figures/generated/
+paper/overleaf_bundle/figures/
+paper/overleaf_upload.zip
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp

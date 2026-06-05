@@ -1,17 +1,20 @@
-# GenomeRL
+# GenomeRL: Reinforcement Learning for Adaptive DNA Tokenization
 
-A reinforcement learning framework for learning adaptive DNA tokenization strategies for genomic sequence classification.
+**GenomeRL** frames adaptive DNA tokenization as a reinforcement learning problem. A boundary policy learns where to place token boundaries along a nucleotide sequence, trading off downstream classification performance against compression. The system is evaluated against strong non-RL baselines (fixed-stride pooling, Gumbel-Softmax segmentation, in-encoder token merging) across seven GUE benchmark tasks.
 
-## Overview
+> **Key finding:** In co-adapted settings, compression itself — not learned boundary placement — is the primary driver of performance. The RL approach's distinctive value is biological interpretability: learned boundaries are specifically enriched at TATA-box motifs (5.5×, p<0.001), a pattern absent from fixed-stride pooling.
 
-GenomeRL trains a **boundary policy** — a neural agent that learns, at each nucleotide position in a DNA sequence, whether to start a new token. Instead of using fixed tokenization schemes (single nucleotides, k-mers, or BPE), the policy is optimized end-to-end with **GRPO (Grouped Reward Policy Optimization)** using downstream classification accuracy as the reward signal.
+---
 
-**Research question:** Can a learned tokenizer preserve classification performance while using fewer tokens than standard genomic tokenization schemes?
+## Method
 
-**Key tasks supported:**
-- Human promoter detection (GUE benchmark)
-- Splice site detection
-- Transcription factor (TF) binding prediction
+A BiLSTM boundary agent reads DNABERT-2 BPE token hidden states and predicts per-position boundary probabilities. Consecutive token states between boundaries are merged via mean-pooling to form segments, which are passed to a fine-tuned classifier. The policy is optimized with **GRPO** (group-relative policy optimization) using a reward that combines classification loss and a compression penalty:
+
+```
+R = -L_cls - β · C(b)
+```
+
+where `C(b) = T(b) / L` is the compression ratio (segments / BPE tokens). A **Lagrangian constrained** variant enforces hard compression budgets via dual ascent.
 
 ---
 
@@ -20,261 +23,134 @@ GenomeRL trains a **boundary policy** — a neural agent that learns, at each nu
 ```
 GenomeRL/
 ├── src/
-│   ├── data/           # Dataset loading and preprocessing
-│   ├── models/         # Model architectures (backbone, agent, classifier)
-│   ├── rl/             # GRPO algorithm and training loops
-│   ├── tokenization/   # Tokenization strategies (1-nt, k-mer, BPE, random, learned)
-│   ├── eval/           # Evaluation scripts and analysis tools
-│   └── utils/          # Config loading, seeding, logging
-├── configs/            # YAML experiment configurations
-├── scripts/            # Shell scripts for running experiments (Slurm + local)
-├── data/               # Preprocessed GUE datasets (JSONL format)
-├── OpenRLHF/           # RL training library (included)
-└── requirements.txt
+│   ├── data/               # Dataset loading (GUE JSONL format)
+│   ├── models/             # Model architectures
+│   │   ├── backbone.py                       # Frozen DNABERT-2 classifier
+│   │   ├── finetuned_dnabert2_env.py         # Fine-tunable DNABERT-2 environment
+│   │   ├── token_state_boundary_agent.py     # BiLSTM boundary policy
+│   │   ├── transformer_boundary_agent.py     # Transformer [CLS] boundary policy
+│   │   ├── attention_pooling_env.py          # Attention-weighted segment pooling
+│   │   └── segment_aware_env.py              # Segment-aware positional encodings
+│   ├── rl/                 # Training scripts
+│   │   ├── grpo.py                           # GRPO advantage + policy loss
+│   │   ├── train_agent_finetuned_env.py      # Main fine-tuned RL training
+│   │   ├── train_agent_lagrangian.py         # Lagrangian constrained RL
+│   │   ├── train_agent_curriculum_splice.py  # Curriculum RL for splice-site
+│   │   ├── train_agent_transformer_policy.py # Transformer policy training
+│   │   └── train_agent_splice_motif_reward.py# GT/AG proximity reward
+│   ├── eval/               # Evaluation and analysis
+│   │   ├── evaluate_splice_perclass.py       # Per-class splice-site diagnostics
+│   │   └── evaluate_token_merging.py         # In-encoder token merging baseline
+│   ├── tokenization/       # Tokenization strategies (1-nt, k-mer, BPE, learned)
+│   └── utils/              # Config loading, seeding
+├── configs/                # YAML experiment configurations
+│   ├── grpo_finetuned_env.yaml               # Main RL config (promoter)
+│   ├── grpo_transformer_policy_promoter.yaml
+│   ├── grpo_curriculum_splice.yaml
+│   └── generated/                            # Per-task auto-generated configs
+├── scripts/
+│   └── slurm/              # SLURM sbatch scripts for HPC
+└── paper/                  # LaTeX source (main.tex, refs.bib)
 ```
 
 ---
 
 ## Setup
 
-### 1. Create and activate a conda environment
-
 ```bash
-conda create -n genomerl python=3.10 -y
-conda activate genomerl
-```
-
-### 2. Install dependencies
-
-```bash
+git clone https://github.com/faezehkhazaee97/GenomeRL.git
+cd GenomeRL
 pip install -r requirements.txt
-```
 
-> **Note:** The DNABERT-2 model (`zhihan1996/DNABERT-2-117M`) is downloaded automatically from Hugging Face on first use. Make sure you have internet access or the model cached.
-
-### 3. (Optional) Set Hugging Face cache directory
-
-```bash
-export HF_HOME=/your/preferred/cache/dir
-```
-
----
-
-## Data
-
-Preprocessed datasets are included in `data/processed/` in JSONL format. Each line is a JSON object with fields:
-
-| Field      | Description                        |
-|------------|------------------------------------|
-| `id`       | Example ID                         |
-| `sequence` | DNA sequence string                |
-| `label`    | Integer class label                |
-| `split`    | `train`, `valid`, or `test`        |
-
-**Datasets:**
-- `data/processed/gue_promoter/` — Human promoter detection (47,356 train / 5,920 val / 5,920 test, 300 bp)
-- `data/processed/gue_splice_site/` — Splice site detection
-- `data/processed/gue_human_tf_0/` through `gue_human_tf_4/` — TF binding prediction
-
-To re-download and re-preprocess from Hugging Face:
-
-```bash
+# Download and preprocess GUE benchmark data
 python -m src.data.download_gue
 python -m src.data.preprocess_gue
 ```
+
+**Requirements:** Python 3.10+, PyTorch 2.2+, Transformers 4.38+, CUDA GPU recommended.
 
 ---
 
 ## Running Experiments
 
-All commands should be run from the repository root with the conda environment active.
-
-### Tokenizer Comparison (Baselines)
-
-Compare all tokenization strategies (single-nt, k-mer, BPE, random):
-
+### Fine-tuned RL (main experiment)
 ```bash
-python -m src.eval.compare_tokenizers
-# Output: results/baselines/tokenizer_comparison.json
+python -m src.rl.train_agent_finetuned_env \
+    --config configs/grpo_finetuned_env.yaml
 ```
 
-### Supervised Baselines
-
-**DNABERT-2 BPE baseline (frozen backbone):**
-
+### Lagrangian constrained RL
 ```bash
-python -m src.eval.evaluate_baseline --config configs/baseline.yaml
+python -m src.rl.train_agent_lagrangian \
+    --config configs/generated/gue_promoter/grpo_finetuned_env_lagrangian.yaml
 ```
 
-**DNABERT-2 finetuned baseline:**
-
+### Transformer boundary policy
 ```bash
-python -m src.eval.evaluate_dnabert2_finetuned_baseline --config configs/baseline_finetuned_dnabert2.yaml
+python -m src.rl.train_agent_transformer_policy \
+    --config configs/grpo_transformer_policy_promoter.yaml
 ```
 
-**CNN baseline:**
-
+### Curriculum RL for splice-site
 ```bash
-python -m src.eval.evaluate_baseline --config configs/baseline.yaml  # set model.backbone_name to cnn in config
+python -m src.rl.train_agent_curriculum_splice \
+    --config configs/grpo_curriculum_splice.yaml
 ```
 
-### GRPO Agent Training
-
-**Train agent with frozen DNABERT-2 environment:**
-
+### SLURM (HPC cluster)
 ```bash
-python -m src.rl.train_agent_frozen_env --config configs/grpo_frozen_env.yaml
-```
-
-**Train agent with finetuned DNABERT-2 environment:**
-
-```bash
-python -m src.rl.train_agent_finetuned_env --config configs/grpo_finetuned_env.yaml
-```
-
-**Train on other tasks (splice site, TF binding):**
-
-```bash
-python -m src.rl.train_agent_frozen_env --config configs/grpo_frozen_env_splice_site.yaml
-python -m src.rl.train_agent_frozen_env --config configs/grpo_frozen_env_tf_binding.yaml
-```
-
-### Evaluation
-
-**Evaluate trained agent (frozen environment):**
-
-```bash
-python -m src.eval.evaluate_frozen_env --config configs/grpo_frozen_env.yaml
-```
-
-**Evaluate trained agent (finetuned environment):**
-
-```bash
-python -m src.eval.evaluate_finetuned_env --config configs/grpo_finetuned_env.yaml
-```
-
-**Analyze learned boundary interpretability:**
-
-```bash
-python -m src.eval.analyze_boundary_interpretability
-```
-
-**Export example tokenizations:**
-
-```bash
-python -m src.eval.export_boundary_examples
+sbatch scripts/slurm/train_agent_finetuned_env_compat_a100.sbatch
 ```
 
 ---
 
-## Slurm (HPC Cluster)
+## Baselines
 
-All submission scripts target the `gpu-a100-h` partition. Before using them, update the paths inside `scripts/slurm/genomerl_a100.sbatch`:
+| Method | Description |
+|--------|-------------|
+| Fine-tuned DNABERT-2 | Full fine-tuning, no compression |
+| Fixed-stride pooling | Mean-pool every s=4 BPE tokens |
+| Random grouping | Random boundaries at matched compression |
+| Gumbel-Softmax | Differentiable segmentation (straight-through gradients) |
+| In-encoder token merging | ToMe-style bipartite similarity merging on final hidden states |
+| RL frozen backbone | Policy against frozen DNABERT-2 |
+| RL fine-tuned | Policy with last 2 DNABERT-2 layers unfrozen |
+| Lagrangian RL | Hard compression budget via dual ascent |
 
-```bash
-REPO_DIR="/path/to/your/GenomeRL"
-CONDA_BASE="/path/to/your/miniconda3"
-ENV_NAME="genomerl"
+---
+
+## Key Results
+
+**Promoter detection** (300 bp, 5,920 test sequences):
+
+| Method | F1 | Compression |
+|--------|-----|-------------|
+| Fine-tuned DNABERT-2 | 0.939 | 1.00 |
+| Stride pooling (s=4) | 0.920 | 0.21 |
+| Fine-tuned RL | 0.886 ± 0.007 | 0.18 |
+| In-encoder token merging | 0.869 | 0.24 |
+| Transformer policy RL | 0.805 ± 0.000 | — |
+| Frozen RL | 0.739 | 0.07 |
+
+**Splice-site** (3-class, 400 bp): Fine-tuned RL collapses to predicting only the majority class (macro-F1=0.241 vs baseline 0.924). Per-class analysis confirms recall=0 for no-splice and acceptor classes — five reward-shaping variants (curriculum, asymmetric recall, GT/AG proximity) all reproduce the same collapse, confirming a representational bottleneck.
+
+**Biological interpretability:** RL boundaries are enriched 5.5× at TATA-box motifs (p<0.001, Cohen's h=1.04, 95% CI [5.1, 5.9]), a pattern absent from stride pooling or token merging.
+
+---
+
+## Citation
+
+```bibtex
+@article{khazaee2025genomerl,
+  title={{GenomeRL}: Reinforcement Learning for Adaptive DNA Tokenization
+         in Genomic Sequence Classification},
+  author={Khazaee, Baran and Cho, Michael and Jiang, Xinyuan},
+  year={2025}
+}
 ```
 
-Then submit jobs with:
-
-```bash
-# Generic submission
-sbatch scripts/slurm/genomerl_a100.sbatch python -m src.rl.train_agent_frozen_env --config configs/grpo_frozen_env.yaml
-
-# Convenience wrappers
-bash scripts/submit_baseline_a100.sh
-bash scripts/submit_train_agent_frozen_env_compat_a100.sh
-bash scripts/submit_evaluate_frozen_env_compat_a100.sh
-```
-
-Slurm logs are written to `results/slurm/`.
-
 ---
 
-## Configuration
+## License
 
-Experiments are controlled by YAML config files in `configs/`. Key fields:
-
-```yaml
-project_name: GenomeRL
-seed: 42
-
-dataset:
-  train_path: data/processed/gue_promoter/train.jsonl
-  valid_path: data/processed/gue_promoter/valid.jsonl
-  test_path:  data/processed/gue_promoter/test.jsonl
-
-model:
-  backbone_name: zhihan1996/DNABERT-2-117M
-  freeze_backbone: true
-  hidden_size: 768
-  num_labels: 2
-
-tokenizer:
-  name: dnabert2_bpe   # one of: single_nt, fixed_kmer, random_policy, dnabert2_bpe
-  max_length: 512
-
-training:
-  batch_size: 16
-  learning_rate: 3e-5
-  epochs: 5
-
-grpo:                  # Only for RL configs
-  group_size: 8
-  beta: 0.02
-```
-
-Available configs:
-
-| Config file | Description |
-|-------------|-------------|
-| `baseline.yaml` | DNABERT-2 BPE baseline, frozen backbone |
-| `baseline_finetuned_dnabert2.yaml` | DNABERT-2 finetuned baseline |
-| `grpo_frozen_env.yaml` | GRPO agent, frozen DNABERT-2 env, promoter |
-| `grpo_frozen_env_splice_site.yaml` | GRPO agent, frozen env, splice site |
-| `grpo_frozen_env_tf_binding.yaml` | GRPO agent, frozen env, TF binding |
-| `grpo_finetuned_env.yaml` | GRPO agent, finetuned DNABERT-2 env, promoter |
-| `grpo_finetuned_env_splice_site.yaml` | GRPO agent, finetuned env, splice site |
-| `grpo_finetuned_env_tf_binding.yaml` | GRPO agent, finetuned env, TF binding |
-| `controlled_ablation.yaml` | Controlled tokenizer ablation study |
-
----
-
-## Tokenization Strategies
-
-| Strategy | Description | Compression ratio |
-|----------|-------------|-------------------|
-| `single_nt` | One token per nucleotide | 1.0 (baseline) |
-| `fixed_kmer` | Non-overlapping 6-mers | ~0.167 |
-| `dnabert2_bpe` | DNABERT-2 BPE tokenizer | ~0.211 |
-| `random_policy` | Bernoulli boundary sampling | ~0.193 |
-| Learned (GRPO) | RL-trained boundary policy | ~0.19 (adaptive) |
-
-*Compression ratio = num_tokens / sequence_length*
-
----
-
-## Key Concepts
-
-**Boundary mask:** A binary vector of length equal to the DNA sequence, where `1` marks the start of a new token. The first position is always `1`.
-
-**GRPO training loop:**
-1. Sample `group_size` tokenizations from the current policy for each sequence.
-2. Score each tokenization using the downstream classifier.
-3. Normalize rewards within each group to compute advantages.
-4. Update the policy with a clipped policy gradient loss.
-
-**Token-gating agent:** An LSTM-based network that processes the one-hot encoded DNA sequence and outputs boundary probabilities at each position.
-
----
-
-## Dependencies
-
-- Python 3.10+
-- PyTorch
-- Hugging Face `transformers` and `datasets`
-- scikit-learn
-- pandas, pyyaml, tqdm
-- DNABERT-2 pretrained model: `zhihan1996/DNABERT-2-117M` (auto-downloaded)
+MIT License. See [LICENSE](LICENSE) for details.
